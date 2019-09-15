@@ -29,14 +29,26 @@ func (index *Index) BuildIndexFromSlice(data []string) {
 	}
 }
 
+func (this Docs) Contains(s string) bool {
+	for _, el := range this {
+		if el.file == s {
+			return true
+		}
+	}
+	return false
+}
+
 func (index *Index) createIndex(s string, counter int) {
 	words := splitRaw(s)
 	counter++
+	file := fmt.Sprintf("Doc%d", counter)
 	for _, w := range words {
 		if docs, ok := index.Get(w); !ok {
-			index.Put(w, Docs{ Doc{file:fmt.Sprintf("Doc%d", counter)}})
+			index.Put(w, Docs{ Doc{file:file}})
 		} else {
-			index.Put(w, append(docs.(Docs), Doc{file:fmt.Sprintf("Doc%d", counter)}))
+			if !docs.(Docs).Contains(file) {
+				index.Put(w, append(docs.(Docs), Doc{file:file}))
+			}
 		}
 	}
 }
