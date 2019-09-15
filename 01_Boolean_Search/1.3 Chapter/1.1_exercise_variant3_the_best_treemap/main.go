@@ -14,7 +14,19 @@ type Doc struct {
 	file  string
 }
 
-type Docs []Doc
+type Docs struct {
+	docs []Doc
+	frequency int32
+}
+
+func (this Docs) Contains(s string) bool {
+	for _, el := range this.docs {
+		if el.file == s {
+			return true
+		}
+	}
+	return false
+}
 
 var docs = []string {
 	"new home sales top forecast home",
@@ -29,25 +41,19 @@ func (index *Index) BuildIndexFromSlice(data []string) {
 	}
 }
 
-func (this Docs) Contains(s string) bool {
-	for _, el := range this {
-		if el.file == s {
-			return true
-		}
-	}
-	return false
-}
-
 func (index *Index) createIndex(s string, counter int) {
 	words := splitRaw(s)
 	counter++
 	file := fmt.Sprintf("Doc%d", counter)
 	for _, w := range words {
 		if docs, ok := index.Get(w); !ok {
-			index.Put(w, Docs{ Doc{file:file}})
+			index.Put(w, Docs{ []Doc{{file:file}}, 1})
 		} else {
 			if !docs.(Docs).Contains(file) {
-				index.Put(w, append(docs.(Docs), Doc{file:file}))
+				documents := docs.(Docs)
+				documents.docs = append(documents.docs, Doc{file:file})
+				documents.frequency++
+				index.Put(w, documents)
 			}
 		}
 	}
