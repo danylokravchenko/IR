@@ -1,11 +1,10 @@
 package lemmatization
 
 import (
+	"../normalization"
 	"bufio"
 	"errors"
-	"fmt"
 	"github.com/emirpasic/gods/maps/treemap"
-	"../normalization"
 	"os"
 	"strings"
 )
@@ -27,16 +26,26 @@ type Lemmatizator struct {
 	Config Config
 }
 
-var ukranianConfig = Config{
-	File:      "dictionary/lemmatization-ukr.txt",
-	Separator: "	",
-	Language:    "ukr",
-}
+var (
+	ukranianConfig = Config{
+		File:      "dictionary/lemmatization-ukr.txt",
+		Separator: "	",
+		Language:    "ukr",
+	}
+	russianConfig = Config{
+		File:      "dictionary/lemmatization-rus.dat",
+		Separator: "	",
+		Language:    "rus",
+	}
+	englishConfig = Config{
+		File:      "dictionary/lemmatization-ukr.txt",
+		Separator: "	",
+		Language:    "eng",
+	}
+)
 
 // configure lemmatizator and read words from dictionary
 func New(config Config) (*Lemmatizator, error) {
-
-	fmt.Println("Loading data...")
 
 	lemmatizator := &Lemmatizator{
 		treemap.NewWithStringComparator(),
@@ -53,9 +62,13 @@ func New(config Config) (*Lemmatizator, error) {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := strings.Split(normalizator.Normalize(scanner.Text()), config.Separator)
-		if len(line) == 2 {
-			lemmatizator.tree.Put(line[1], line[0])
+		line := strings.Split(normalizator.BasicNormalize(scanner.Text()), config.Separator)
+		if len(line) >= 2 {
+			if config.Language == "rus" {
+				lemmatizator.tree.Put(line[0], line[1])
+			} else {
+				lemmatizator.tree.Put(line[1], line[0])
+			}
 		}
 	}
 
@@ -67,8 +80,6 @@ func New(config Config) (*Lemmatizator, error) {
 		return nil, errors.New("File is empty or format is wrong")
 	}
 
-	fmt.Println("Data loaded")
-
 	return lemmatizator, nil
 
 }
@@ -77,6 +88,12 @@ func NewUkranianLemmatizator() (*Lemmatizator, error) {
 	return New(ukranianConfig)
 }
 
+func NewRussianLemmatizator() (*Lemmatizator, error) {
+	return New(ukranianConfig)
+}
+func NewEnglishLemmatizator() (*Lemmatizator, error) {
+	return New(ukranianConfig)
+}
 // return lema if it exists or the same word
 func (l *Lemmatizator) GetLema(word string) string {
 	if lema, ok := l.tree.Get(word); ok {

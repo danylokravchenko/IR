@@ -26,6 +26,10 @@ func (n *Normalizator) Normalize(word string) string {
 	for _, r := range blackList {
 		word = strings.Replace(word, fmt.Sprintf("%c", r), "", -1)
 	}
+	return n.BasicNormalize(word)
+}
+
+func (n *Normalizator) BasicNormalize(word string) string {
 	res, _, _ := transform.String(n.t, word)
 	return strings.ToLower(res)
 }
