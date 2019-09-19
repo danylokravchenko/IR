@@ -112,7 +112,12 @@ func (corpus *Corpus) PositionalIntersect(p1, p2 Index,  k int) Docs {
 					l = append(l[:0], l[1:]...)  // delete(l[0])
 				}
 				for _, ps := range l {
-					answer.Put(doc1.ID, []int32{pp1[ii], ps} ) // add answer(docID(p1), pos(pp1), ps)
+					answer.Put(doc1.ID, Doc {  // add answer(docID(p1), pos(pp1), ps)
+						ID:        doc1.ID,
+						File:      doc1.File,
+						Frequency: 1,
+						Positions: []int32{pp1[ii], ps},
+					} )
 				}
 				ii++
 			}
