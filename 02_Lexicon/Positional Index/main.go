@@ -2,6 +2,7 @@ package main
 
 import (
 	"./corpus"
+	"fmt"
 	"github.com/emirpasic/gods/maps/treemap"
 )
 
@@ -16,12 +17,19 @@ var docs = []string {
 
 
 func main() {
+
 	// initialize corpus
-	corpus := corpus.Corpus{treemap.NewWithStringComparator()}
+	c := corpus.Corpus{treemap.NewWithStringComparator()}
 
 	// build index
-	corpus.BuildIndexFromSlice(docs)
+	c.BuildIndexFromSlice(docs)
 
-	// print result
-	corpus.Print()
+	// print corpus
+	//c.Print()
+
+	home, _ := c.Get("home")
+	sales, _ := c.Get("sales")
+
+	fmt.Println(c.PositionalIntersect(home.(corpus.Index), sales.(corpus.Index), 2))
+
 }
