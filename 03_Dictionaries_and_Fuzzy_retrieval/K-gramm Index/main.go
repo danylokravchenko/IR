@@ -2,13 +2,14 @@ package main
 
 import (
 	"./corpus"
+	"fmt"
 )
 
 var docs = []string {
-	"new home sales top forecast home",
+	"new home sales top forecast home retired",
 	"home sales rise in july june",
-	"increase in home sales in july",
-	"forecast july new home sales rise",
+	"increase in home sales in july forest",
+	"forecast july new home sales rise sanderes", //sanderes just to fit 'sa*es'
 }
 
 func main() {
@@ -22,12 +23,24 @@ func main() {
 	c.BuildIndexFromSlice(docs)
 
 	// print corpus
-	c.Print()
+	//c.Print()
 
-	//home, _ := c.Get("home")
-	//sales, _ := c.Get("sales")
+	//home, ok1 := c.Get("home")
+	//sales, ok2 := c.Get("sales")
+	//ok := ok1 && ok2
 	//
-	//fmt.Println(c.Intersect(home.(corpus.Index), sales.(corpus.Index)))
-	//
-	//fmt.Println(c.PositionalIntersect(home.(corpus.Index), sales.(corpus.Index), 2))
+	//if ok {
+	//	fmt.Println(c.Intersect(home.(corpus.Index), sales.(corpus.Index)))
+	//	fmt.Println(c.PositionalIntersect(home.(corpus.Index), sales.(corpus.Index), 2))
+	//}
+
+	//fo*st  $fo AND st$ -> forecast, forest
+	fmt.Println(c.KGrammTermsIntersect("$fo", "st$"))
+	//sa*es  $sa AND es$ -> sales, sanderes
+	fmt.Println(c.KGrammTermsIntersect("$sa", "es$"))
+	//red*  $re AND red -> retired !!! but it does not contains 'red'
+	fmt.Println(c.KGrammTermsIntersect("$re", "red"))
+
+	// just test for empty line
+	//fmt.Println(c.KGrammTermsIntersect("", "red"))
 }
