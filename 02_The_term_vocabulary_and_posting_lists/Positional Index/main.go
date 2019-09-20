@@ -30,6 +30,8 @@ func main() {
 	home, _ := c.Get("home")
 	sales, _ := c.Get("sales")
 
+	fmt.Println(c.Intersect(home.(corpus.Index), sales.(corpus.Index)))
+
 	fmt.Println(c.PositionalIntersect(home.(corpus.Index), sales.(corpus.Index), 2))
 
 }
