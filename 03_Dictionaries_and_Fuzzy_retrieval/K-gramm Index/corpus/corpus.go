@@ -7,13 +7,18 @@ import (
 	"github.com/emirpasic/gods/sets/hashset"
 	"math"
 	"strings"
+	"sync"
 )
 
 type Corpus struct {
 	*treemap.Map
 	KGramm *KGrammIndex
+	mutex *sync.Mutex
+	wg *sync.WaitGroup
 }
 
+
+// New instance of Corpus with initialized map, KGramm map and syncs
 func New(kgrammSize int) *Corpus{
 	return &Corpus{
 		treemap.NewWithStringComparator(),
@@ -21,21 +26,35 @@ func New(kgrammSize int) *Corpus{
 			Map: hashmap.New(),
 			k:kgrammSize,
 		},
+		&sync.Mutex{},
+		&sync.WaitGroup{},
 	}
 }
 
 
+// Build inverted index from slice
 func (corpus *Corpus) BuildIndexFromSlice(data []string) {
-	corpus.KGramm = &KGrammIndex{k: 3, Map: hashmap.New()}
+
+	corpus.wg.Add(len(data))
+
 	for i, s := range data {
-		corpus.createIndex(s, i)
+		go corpus.createIndex(s, i)
 	}
+
+	corpus.wg.Wait()
+
 }
 
+
+// Create or update index for terms
 func (corpus *Corpus) createIndex(line string, id int) {
+
+	corpus.mutex.Lock()
+
 	words := splitRaw(line)
 	id++
 	file := fmt.Sprintf("Doc%d", id)
+
 	for position, w := range words {
 
 		corpus.buildKGrammIndex(w)
@@ -52,6 +71,7 @@ func (corpus *Corpus) createIndex(line string, id int) {
 		} else {
 			documents := index.(Index)
 			documents.TotalFrequency++
+
 			if !documents.Contains(id) {
 				documents.Docs.Put(id, Doc{
 					ID:        id,
@@ -62,45 +82,75 @@ func (corpus *Corpus) createIndex(line string, id int) {
 			} else {
 				documents.updateDocument(id, position + 1)
 			}
-			corpus.Put(w, documents)
+			// don't need next line (I hope :) )
+			//corpus.Put(w, documents)
 		}
+
 	}
+
+	corpus.wg.Done()
+	// defer is 40 nanoseconds
+	corpus.mutex.Unlock()
+
 }
 
+
+// Save kgramm keywords into map
 func (corpus *Corpus) buildKGrammIndex(term string) {
+
 	gramms := splitKGramm(term, corpus.KGramm.k)
+
 	for _, g := range gramms {
 		if index, ok := corpus.KGramm.Get(g); !ok {
 			corpus.KGramm.Put(g, KGrammTerms{hashset.New(term)})
 		} else {
 			terms := index.(KGrammTerms)
 			terms.Add(term) //duplicates ignores
-			// TODO: test next line if it is needed
+			// don't need next line (I hope :) )
 			//corpus.KGramm.Put(g,terms)
 		}
 	}
+
 }
 
+
+// Update document's frequency, position and append new document
 func (index *Index) updateDocument(id, position int) {
+
 	document, _ := index.Docs.Get(id)
 	doc := document.(Doc)
 	doc.Frequency++
 	doc.Positions = append(doc.Positions, int32(position))
-	index.Docs.Put(id, doc)
+	// don't need next line (I hope :) )
+	//index.Docs.Put(id, doc)
+
 }
 
+// Split line by 'space' and trim it
 func splitRaw(s string) []string {
 	return strings.Split(strings.Trim(s, ".,-~?!\"'`;:()<>[]{}\\|/=_+*&^%$#@"), " ")
 }
 
+
+// Build all available gramm for the given term
 func splitKGramm(s string, k int) []string {
+
 	var res []string
-	if len(s) <= k {
-		res = append(res, s)
+	l := len(s)
+
+	if l < k {
+		res = append(res, "$"+s)
 		return res
 	}
+
+	if l == k {
+		res = append(res, "$"+s[:k-1])
+		res = append(res, s)
+		res = append(res, s[1:] + "$")
+		return res
+	}
+
 	res = append(res, "$"+s[:k-1])
-	l := len(s)
 	for i := 1; i <= l; i++ {
 		if i+k+1 == l+k-1 {
 			res = append(res, s[i:l] + "$")
@@ -108,11 +158,17 @@ func splitKGramm(s string, k int) []string {
 		}
 		res = append(res, s[i:k+i])
 	}
+
 	return res
+
 }
 
+
+// Helper for printing all important information
 func (corpus *Corpus) Print() {
+
 	corpus.KGramm.Print()
+
 	corpus.Each(func(key interface{}, value interface{}) {
 		index := value.(Index)
 		fmt.Printf("term: %s, total Frequency: %d, posting list: \n",key.(string), index.TotalFrequency)
@@ -120,12 +176,17 @@ func (corpus *Corpus) Print() {
 			fmt.Println(value.(Doc))
 		})
 	})
+
 }
 
+
+// Intersect KGramm Indexes for the given wildcard
 func (corpus *Corpus) KGrammTermsIntersect(s1, s2 string) []string {
+
 	var values1 []string
 	var values2 []string
 	var terms KGrammTerms
+
 	if v1, ok1 := corpus.KGramm.Get(s1); ok1 {
 		for _, v := range v1.(KGrammTerms).Values() {
 			values1 = append(values1, v.(string))
@@ -149,6 +210,7 @@ func (corpus *Corpus) KGrammTermsIntersect(s1, s2 string) []string {
 	len1 := len(values1)
 	len2 := len(values2)
 	i, j := 0,0
+
 	for i != len1 && j != len2 {
 		if terms.Contains(values1[i]) && terms.Contains(values1[i]) {
 			res = append(res, values1[i])
@@ -156,52 +218,84 @@ func (corpus *Corpus) KGrammTermsIntersect(s1, s2 string) []string {
 		j++
 		i++
 	}
+
 	return postFilter(res, s1, s2)
+
 }
 
+
+// Filter results to prevent terms with incorrect wildcards:
+// red*  $re AND red -> retired !!! but it does not start with 'red'
 func postFilter(terms []string, wildcard1, wildcard2 string) []string {
+
 	var res []string
+
 	for _, term := range terms {
-		ok1 := false
-		ok2 := false
-		if strings.HasPrefix(wildcard1, "$") || strings.HasSuffix(wildcard1, "$"){
-			if strings.Contains(term, strings.Replace(wildcard1, "$", "", -1)) {
-				ok1 = true
+
+		s1 := strings.Replace(wildcard1, "$", "", -1)
+		s2 := strings.Replace(wildcard2, "$", "", -1)
+
+		if strings.HasPrefix(wildcard1, "$") {
+			if strings.HasPrefix(term, s1) && strings.Contains(term, s2) {
+				res = append(res, term)
+				continue
 			}
 		}
-		if strings.HasPrefix(wildcard2, "$") || strings.HasSuffix(wildcard2, "$"){
-			if strings.Contains(term, strings.Replace(wildcard2, "$", "", -1)) {
-				ok2 = true
+
+		if strings.HasSuffix(wildcard1, "$") {
+			if strings.HasSuffix(term, s1) && strings.Contains(term, s2) {
+				res = append(res, term)
+				continue
 			}
 		}
-		if ok1 && ok2 {
-			res = append(res, term)
-			continue
+
+		if strings.HasPrefix(wildcard2, "$") {
+			if strings.HasPrefix(term, s2) && strings.Contains(term, s1) {
+				res = append(res, term)
+				continue
+			}
 		}
-		if strings.Contains(term[1:len(term)-1], wildcard1) && strings.Contains(term[1:len(term)-1], wildcard2) {
+
+		if strings.HasSuffix(wildcard2, "$") {
+			if strings.HasSuffix(term, s2) && strings.Contains(term, s1) {
+				res = append(res, term)
+				continue
+			}
+		}
+
+		if strings.Contains(term, s1) && strings.Contains(term, s2) {
 			res = append(res, term)
 		}
 	}
+
 	return res
+
 }
 
+
+// Intersect Indexes by closest terms by their positions
 func (corpus *Corpus) PositionalIntersect(p1, p2 Index,  k int) Docs {
+
 	var answer = Docs{treemap.NewWithIntComparator()}
 	len1 := p1.Docs.Size() + 1
 	len2 := p2.Docs.Size() + 1
 	i, j := 1, 1
+
 	for i != len1  && j != len2 {
 		var(
 			doc1, doc2 Doc
 			document1, document2 interface{}
 			ok1, ok2 bool
 		)
+
 		if document1, ok1 = p1.Docs.Get(i); ok1 { //check for nil
 			doc1 = document1.(Doc)
 		}
+
 		if document2, ok2 = p2.Docs.Get(j); ok2 { //check for nil
 			doc2 = document2.(Doc)
 		}
+
 		ok := ok1 && ok2
 		//   if docID(p1[i]) == docID(p2[j]):
 		if ok && doc1.ID == doc2.ID {
@@ -212,6 +306,7 @@ func (corpus *Corpus) PositionalIntersect(p1, p2 Index,  k int) Docs {
 			plen1 := len(pp1)
 			plen2 := len(pp2)
 			ii, jj := 0, 0
+
 			for ii != plen1 {
 				for jj != plen2 {
 					if math.Abs(float64(pp1[ii] - pp2[jj])) <= float64(k) {
@@ -242,26 +337,35 @@ func (corpus *Corpus) PositionalIntersect(p1, p2 Index,  k int) Docs {
 			j++
 		}
 	}
+
 	return answer
+
 }
 
+
+// Intersect 2 Indexes
 func (corpus *Corpus) Intersect(p1, p2 Index) Docs {
+
 	var answer = Docs{treemap.NewWithIntComparator()}
 	len1 := p1.Docs.Size() + 1
 	len2 := p2.Docs.Size() + 1
 	i, j := 1, 1
+
 	for i != len1  && j != len2 {
 		var(
 			doc1, doc2 Doc
 			document1, document2 interface{}
 			ok1, ok2 bool
 		)
+
 		if document1, ok1 = p1.Docs.Get(i); ok1 { //check for nil
 			doc1 = document1.(Doc)
 		}
+
 		if document2, ok2 = p2.Docs.Get(j); ok2 { //check for nil
 			doc2 = document2.(Doc)
 		}
+
 		ok := ok1 && ok2
 		//   if docID(p1[i]) == docID(p2[j]):
 		if ok && doc1.ID == doc2.ID {

@@ -7,7 +7,7 @@ import (
 
 var docs = []string {
 	"new home sales top forecast home retired",
-	"home sales rise in july june",
+	"home sales rise in july june red redemption",
 	"increase in home sales in july forest",
 	"forecast july new home sales rise sanderes", //sanderes just to fit 'sa*es'
 }
@@ -38,7 +38,7 @@ func main() {
 	fmt.Println(c.KGrammTermsIntersect("$fo", "st$"))
 	//sa*es  $sa AND es$ -> sales, sanderes
 	fmt.Println(c.KGrammTermsIntersect("$sa", "es$"))
-	//red*  $re AND red -> retired !!! but it does not contains 'red'
+
 	fmt.Println(c.KGrammTermsIntersect("$re", "red"))
 
 	// just test for empty line
