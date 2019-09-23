@@ -41,6 +41,4 @@ func main() {
 
 	fmt.Println(c.KGrammTermsIntersect("$re", "red"))
 
-	// just test for empty line
-	//fmt.Println(c.KGrammTermsIntersect("", "red"))
 }
