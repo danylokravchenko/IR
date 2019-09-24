@@ -38,3 +38,6 @@ type KGrammTerms struct {
 	*hashset.Set
 }
 
+type SoundexTerms struct {
+	*hashset.Set
+}

@@ -10,6 +10,7 @@ var docs = []string {
 	"home sales rise in july june red redemption",
 	"increase in home sales in july forest",
 	"forecast july new home sales rise sanderes", //sanderes just to fit 'sa*es'
+	"Miller Muller",
 }
 
 func main() {
@@ -35,10 +36,12 @@ func main() {
 	//}
 
 	//fo*st  $fo AND st$ -> forecast, forest
-	fmt.Println(c.KGrammTermsIntersect("$fo", "st$"))
+	//fmt.Println(c.KGrammTermsIntersect("$fo", "st$"))
 	//sa*es  $sa AND es$ -> sales, sanderes
-	fmt.Println(c.KGrammTermsIntersect("$sa", "es$"))
+	//fmt.Println(c.KGrammTermsIntersect("$sa", "es$"))
 
-	fmt.Println(c.KGrammTermsIntersect("$re", "red"))
+	//fmt.Println(c.KGrammTermsIntersect("$re", "red"))
+
+	fmt.Println(c.GetSimilarlySoundWords("Miller")) // Miller, Muller
 
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/emirpasic/gods/maps/hashmap"
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/emirpasic/gods/sets/hashset"
+	"github.com/dotcypress/phonetics"
 	"math"
 	"strings"
 	"sync"
@@ -12,13 +13,14 @@ import (
 
 type Corpus struct {
 	*treemap.Map
-	KGramm *KGrammIndex
-	mutex *sync.Mutex
-	wg *sync.WaitGroup
+	kGramm  *KGrammIndex
+	soundex *hashmap.Map
+	mutex   *sync.Mutex
+	wg      *sync.WaitGroup
 }
 
 
-// New instance of Corpus with initialized map, KGramm map and syncs
+// New instance of Corpus with initialized map, kGramm map, soundex map and syncs
 func New(kgrammSize int) *Corpus{
 	return &Corpus{
 		treemap.NewWithStringComparator(),
@@ -26,6 +28,7 @@ func New(kgrammSize int) *Corpus{
 			Map: hashmap.New(),
 			k:kgrammSize,
 		},
+		hashmap.New(),
 		&sync.Mutex{},
 		&sync.WaitGroup{},
 	}
@@ -59,6 +62,8 @@ func (corpus *Corpus) createIndex(line string, id int) {
 
 		corpus.buildKGrammIndex(w)
 
+		corpus.buildSoundexIndex(w)
+
 		if index, ok := corpus.Get(w); !ok {
 			docs := treemap.NewWithIntComparator()
 			docs.Put(id, Doc{
@@ -89,7 +94,7 @@ func (corpus *Corpus) createIndex(line string, id int) {
 	}
 
 	corpus.wg.Done()
-	// defer is 40 nanoseconds
+	// defer is 40 ns/op
 	corpus.mutex.Unlock()
 
 }
@@ -98,17 +103,32 @@ func (corpus *Corpus) createIndex(line string, id int) {
 // Save kgramm keywords into map
 func (corpus *Corpus) buildKGrammIndex(term string) {
 
-	gramms := splitKGramm(term, corpus.KGramm.k)
+	gramms := splitKGramm(term, corpus.kGramm.k)
 
 	for _, g := range gramms {
-		if index, ok := corpus.KGramm.Get(g); !ok {
-			corpus.KGramm.Put(g, KGrammTerms{hashset.New(term)})
+		if index, ok := corpus.kGramm.Get(g); !ok {
+			corpus.kGramm.Put(g, KGrammTerms{hashset.New(term)})
 		} else {
 			terms := index.(KGrammTerms)
 			terms.Add(term) //duplicates ignores
 			// don't need next line (I hope :) )
-			//corpus.KGramm.Put(g,terms)
+			//corpus.kGramm.Put(g,terms)
 		}
+	}
+
+}
+
+
+// Save soundex value into map (English)
+func (corpus *Corpus) buildSoundexIndex(term string) {
+
+	val := phonetics.EncodeSoundex(term)
+
+	if index, ok := corpus.soundex.Get(val); !ok {
+		corpus.soundex.Put(val, SoundexTerms{hashset.New(term)})
+	} else {
+		terms := index.(SoundexTerms)
+		terms.Add(term) //duplicates ignores
 	}
 
 }
@@ -167,7 +187,9 @@ func splitKGramm(s string, k int) []string {
 // Helper for printing all important information
 func (corpus *Corpus) Print() {
 
-	corpus.KGramm.Print()
+	corpus.kGramm.Print()
+
+	fmt.Println(corpus.soundex)
 
 	corpus.Each(func(key interface{}, value interface{}) {
 		index := value.(Index)
@@ -180,21 +202,21 @@ func (corpus *Corpus) Print() {
 }
 
 
-// Intersect KGramm Indexes for the given wildcard
+// Intersect kGramm Indexes for the given wildcard
 func (corpus *Corpus) KGrammTermsIntersect(s1, s2 string) []string {
 
 	var values1 []string
 	var values2 []string
 	var terms KGrammTerms
 
-	if v1, ok1 := corpus.KGramm.Get(s1); ok1 {
+	if v1, ok1 := corpus.kGramm.Get(s1); ok1 {
 		for _, v := range v1.(KGrammTerms).Values() {
 			values1 = append(values1, v.(string))
 		}
 		terms = v1.(KGrammTerms)
 	}
 
-	if v2, ok2 := corpus.KGramm.Get(s2); ok2 {
+	if v2, ok2 := corpus.kGramm.Get(s2); ok2 {
 		for _, v := range v2.(KGrammTerms).Values() {
 			values2 = append(values2, v.(string))
 		}
@@ -223,6 +245,21 @@ func (corpus *Corpus) KGrammTermsIntersect(s1, s2 string) []string {
 
 }
 
+
+// Get terms that have the same soundex code
+func (corpus *Corpus) GetSimilarlySoundWords(term string) []string {
+
+	res := make([]string, 0)
+
+	if terms, ok := corpus.soundex.Get(phonetics.EncodeSoundex(term)); ok {
+		for _, term := range terms.(SoundexTerms).Values() {
+			res = append(res, term.(string))
+		}
+	}
+
+	return res
+
+}
 
 // Filter results to prevent terms with incorrect wildcards:
 // red*  $re AND red -> retired !!! but it does not start with 'red'
