@@ -6,6 +6,7 @@ import (
 	"github.com/emirpasic/gods/maps/treemap"
 	"github.com/emirpasic/gods/sets/hashset"
 	"github.com/dotcypress/phonetics"
+	"./automaton"
 	"math"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ type Corpus struct {
 	*treemap.Map
 	kGramm  *KGrammIndex
 	soundex *hashmap.Map
+	automaton *automaton.Tree
 	mutex   *sync.Mutex
 	wg      *sync.WaitGroup
 }
@@ -29,6 +31,7 @@ func New(kgrammSize int) *Corpus{
 			k:kgrammSize,
 		},
 		hashmap.New(),
+		automaton.NewTree(),
 		&sync.Mutex{},
 		&sync.WaitGroup{},
 	}
@@ -38,10 +41,14 @@ func New(kgrammSize int) *Corpus{
 // Build inverted index from slice
 func (corpus *Corpus) BuildIndexFromSlice(data []string) {
 
-	corpus.wg.Add(len(data))
+	corpus.wg.Add(len(data) * 4)
 
 	for i, s := range data {
-		go corpus.createIndex(s, i)
+		words := splitRaw(s)
+		go corpus.createIndex(words, i)
+		go corpus.buildKGrammIndex(words)
+		go corpus.buildSoundexIndex(words)
+		go corpus.buildAutomatonIndex(words)
 	}
 
 	corpus.wg.Wait()
@@ -50,19 +57,14 @@ func (corpus *Corpus) BuildIndexFromSlice(data []string) {
 
 
 // Create or update index for terms
-func (corpus *Corpus) createIndex(line string, id int) {
+func (corpus *Corpus) createIndex(words []string, id int) {
 
-	corpus.mutex.Lock()
-
-	words := splitRaw(line)
 	id++
 	file := fmt.Sprintf("Doc%d", id)
 
 	for position, w := range words {
 
-		corpus.buildKGrammIndex(w)
-
-		corpus.buildSoundexIndex(w)
+		corpus.mutex.Lock()
 
 		if index, ok := corpus.Get(w); !ok {
 			docs := treemap.NewWithIntComparator()
@@ -91,45 +93,85 @@ func (corpus *Corpus) createIndex(line string, id int) {
 			//corpus.Put(w, documents)
 		}
 
+		// defer is 40 ns/op
+		corpus.mutex.Unlock()
+
 	}
 
 	corpus.wg.Done()
-	// defer is 40 ns/op
-	corpus.mutex.Unlock()
 
 }
 
 
 // Save kgramm keywords into map
-func (corpus *Corpus) buildKGrammIndex(term string) {
+func (corpus *Corpus) buildKGrammIndex(terms []string) {
 
-	gramms := splitKGramm(term, corpus.kGramm.k)
+	for _, term := range terms {
 
-	for _, g := range gramms {
-		if index, ok := corpus.kGramm.Get(g); !ok {
-			corpus.kGramm.Put(g, KGrammTerms{hashset.New(term)})
-		} else {
-			terms := index.(KGrammTerms)
-			terms.Add(term) //duplicates ignores
-			// don't need next line (I hope :) )
-			//corpus.kGramm.Put(g,terms)
+		corpus.mutex.Lock()
+
+		gramms := splitKGramm(term, corpus.kGramm.k)
+
+		for _, g := range gramms {
+
+			if index, ok := corpus.kGramm.Get(g); !ok {
+				corpus.kGramm.Put(g, KGrammTerms{hashset.New(term)})
+			} else {
+				terms := index.(KGrammTerms)
+				terms.Add(term) //duplicates ignores
+				// don't need next line (I hope :) )
+				//corpus.kGramm.Put(g,terms)
+			}
+
 		}
+
+		corpus.mutex.Unlock()
 	}
+
+	corpus.wg.Done()
 
 }
 
 
 // Save soundex value into map (English)
-func (corpus *Corpus) buildSoundexIndex(term string) {
+func (corpus *Corpus) buildSoundexIndex(terms []string) {
 
-	val := phonetics.EncodeSoundex(term)
+	for _, term := range terms {
 
-	if index, ok := corpus.soundex.Get(val); !ok {
-		corpus.soundex.Put(val, SoundexTerms{hashset.New(term)})
-	} else {
-		terms := index.(SoundexTerms)
-		terms.Add(term) //duplicates ignores
+		corpus.mutex.Lock()
+
+		val := phonetics.EncodeSoundex(term)
+
+		if index, ok := corpus.soundex.Get(val); !ok {
+			corpus.soundex.Put(val, SoundexTerms{hashset.New(term)})
+		} else {
+			terms := index.(SoundexTerms)
+			terms.Add(term) //duplicates ignores
+		}
+
+		corpus.mutex.Unlock()
+
 	}
+
+	corpus.wg.Done()
+
+}
+
+
+// Build Levenshtein Sparse automaton indexes
+func (corpus *Corpus) buildAutomatonIndex(terms []string) {
+
+	for _, term := range terms {
+
+		corpus.mutex.Lock()
+
+		corpus.automaton.Insert(term)
+
+		corpus.mutex.Unlock()
+
+	}
+
+	corpus.wg.Done()
 
 }
 
@@ -258,6 +300,14 @@ func (corpus *Corpus) GetSimilarlySoundWords(term string) []string {
 	}
 
 	return res
+
+}
+
+
+// Get words that could be 'correct' version of user's input word with mistakes
+func (corpus *Corpus) FuzzySearch(word string, maxDistance int) []string {
+
+	return corpus.automaton.FuzzyMatches(word, maxDistance)
 
 }
 

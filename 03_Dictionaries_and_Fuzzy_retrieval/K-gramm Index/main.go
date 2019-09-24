@@ -38,6 +38,10 @@ func main() {
 
 	//fmt.Println(c.KGrammTermsIntersect("$re", "red"))
 
-	fmt.Println(c.GetSimilarlySoundWords("Miller")) // Miller, Muller
+	// Get word that sound similarly to given one
+	//fmt.Println(c.GetSimilarlySoundWords("Miller")) // Miller, Muller
+
+	// Get words that could be 'correct' version of user's input word with mistakes
+	fmt.Println(c.FuzzySearch("Milller", 2)); //Muller, Miller
 
 }
