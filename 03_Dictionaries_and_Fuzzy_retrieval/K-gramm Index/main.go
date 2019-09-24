@@ -26,14 +26,10 @@ func main() {
 	// print corpus
 	//c.Print()
 
-	//home, ok1 := c.Get("home")
-	//sales, ok2 := c.Get("sales")
-	//ok := ok1 && ok2
-	//
-	//if ok {
-	//	fmt.Println(c.Intersect(home.(corpus.Index), sales.(corpus.Index)))
-	//	fmt.Println(c.PositionalIntersect(home.(corpus.Index), sales.(corpus.Index), 2))
-	//}
+
+
+	//fmt.Println(c.Intersect("home", "sales"))
+	//fmt.Println(c.PositionalIntersect("home", "sales", 2))
 
 	//fo*st  $fo AND st$ -> forecast, forest
 	//fmt.Println(c.KGrammTermsIntersect("$fo", "st$"))

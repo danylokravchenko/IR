@@ -311,7 +311,16 @@ func postFilter(terms []string, wildcard1, wildcard2 string) []string {
 
 
 // Intersect Indexes by closest terms by their positions
-func (corpus *Corpus) PositionalIntersect(p1, p2 Index,  k int) Docs {
+func (corpus *Corpus) PositionalIntersect(term1, term2 string,  k int) Docs {
+
+	index1, ok1 := corpus.Get(term1)
+	index2, ok2 := corpus.Get(term2)
+	if !ok1 || !ok2 {
+		return Docs{}
+	}
+
+	p1 := index1.(Index)
+	p2 := index2.(Index)
 
 	var answer = Docs{treemap.NewWithIntComparator()}
 	len1 := p1.Docs.Size() + 1
@@ -381,7 +390,16 @@ func (corpus *Corpus) PositionalIntersect(p1, p2 Index,  k int) Docs {
 
 
 // Intersect 2 Indexes
-func (corpus *Corpus) Intersect(p1, p2 Index) Docs {
+func (corpus *Corpus) Intersect(term1, term2 string) Docs {
+
+	index1, ok1 := corpus.Get(term1)
+	index2, ok2 := corpus.Get(term2)
+	if !ok1 || !ok2 {
+		return Docs{}
+	}
+
+	p1 := index1.(Index)
+	p2 := index2.(Index)
 
 	var answer = Docs{treemap.NewWithIntComparator()}
 	len1 := p1.Docs.Size() + 1
