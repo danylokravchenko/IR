@@ -7,7 +7,7 @@ import (
 )
 
 type Index struct {
-	Docs           Docs //[]Doc
+	Docs           Docs
 	TotalFrequency int32
 }
 
