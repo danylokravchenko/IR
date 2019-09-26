@@ -1,17 +1,17 @@
 package spimi
 
 import (
+	. "../corpus"
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/emirpasic/gods/maps/treemap"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
-
 //Page 73:
 //SPIMI-Invert(token_stream)
 //1  output_file = NewFile()
@@ -35,7 +35,10 @@ type SPIMI struct {
 	outputFile string
 	blockSize int
 	corpus *Corpus
+	mutex   *sync.Mutex
+	wg      *sync.WaitGroup
 }
+
 
 func NewSpimi(inputDir, outputFile string, blockSize int) *SPIMI{
 
@@ -43,6 +46,8 @@ func NewSpimi(inputDir, outputFile string, blockSize int) *SPIMI{
 		inputDir:   inputDir,
 		outputFile: outputFile,
 		blockSize:  blockSize,
+		mutex: &sync.Mutex{},
+		wg: &sync.WaitGroup{},
 	}
 	tokenStream := spimi.generateTokens()
 	blocks := spimi.makeBlocks(tokenStream)
@@ -54,12 +59,17 @@ func NewSpimi(inputDir, outputFile string, blockSize int) *SPIMI{
 }
 
 func getTerms(tokens []Token) []string {
+
 	res := make([]string, 0)
+
 	for _, token := range tokens {
-		res = append(res, token.term)
+		res = append(res, token.Term)
 	}
+
 	return res
+
 }
+
 
 // Generate tokens from files in input dir
 // TODO: Maybe good idea is to return chanel, so program could run forward while this method will parse files in dir
@@ -73,16 +83,23 @@ func (spimi *SPIMI) generateTokens() []Token {
 		log.Fatal(err)
 	}
 
+	spimi.wg.Add(len(files))
+
 	for i, f := range files {
 		// TODO: use concurrency to parse document
 		// 1 gorutine per file
-		tokens, err := parseDocument(i, spimi.inputDir +"/" + f.Name())
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		tokenStream = append(tokenStream, tokens...)
+		go func() {
+			tokens, err := spimi.parseDocument(i, spimi.inputDir +"/" + f.Name())
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			tokenStream = append(tokenStream, tokens...)
+		}()
+
 	}
+
+	spimi.wg.Wait()
 
 	return tokenStream
 
@@ -95,22 +112,27 @@ func tokenize(text string) []string {
 	//return re.FindAllString(text, -1)
 	tokens := strings.Split(strings.Trim(text, ".,-~?!\"'`;:()<>[]{}\\|/=_+*&^%$#@"), " ")
 	for i, token := range tokens {
-		if strings.HasSuffix(token, ".") || strings.HasSuffix(token, ",") || strings.HasSuffix(token, ";") {
-			tokens[i] = token[:len(token)-1]
-		}
+		tokens[i] = strings.Replace(
+			strings.Replace(
+			strings.Replace(
+			strings.Replace(
+			strings.Replace(
+			strings.Replace(
+			strings.Replace(
+				token, ".", "", -1),
+				",", "", -1),
+				"'", "", -1),
+				"?", "", -1),
+				"!", "", -1),
+				"\"", "", -1),
+		";", "", -1)
+
 	}
 	return tokens
 }
 
-type Token struct {
-	term string
-	position int
-	docID int
-	file string
-}
-
 // Parse the doc in a stream of term-docId pairs which we call tokens
-func parseDocument(docID int, fileName string) ([]Token, error) {
+func (spimi *SPIMI) parseDocument(docID int, fileName string) ([]Token, error) {
 
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -128,13 +150,15 @@ func parseDocument(docID int, fileName string) ([]Token, error) {
 		terms := tokenize(scanner.Text())
 		for pos, term := range terms {
 			tokens = append(tokens, Token{
-				term:     term,
-				position: pos,
-				docID:    docID,
-				file: fileName,
+				Term:     term,
+				Position: pos + 1,
+				DocID:    docID,
+				File: fileName,
 			})
 		}
 	}
+
+	spimi.wg.Done()
 
 	return tokens, nil
 
@@ -163,6 +187,30 @@ func (spimi *SPIMI) makeBlocks(tokenStream []Token) blocks {
 
 }
 
+// Create inverted Index
+func (spimi *SPIMI) Invert(blockID int, tokens []Token) string{
+
+	outputFile := fmt.Sprintf("output/block%d.dat", blockID)
+
+	c := NewCorpus(2)
+	c.BuildIndexFromTokens(tokens)
+
+	file, err := os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		log.Println(err)
+	}
+	defer file.Close()
+
+	w := bufio.NewWriter(file)
+	_, err = w.Write([]byte(c.ToGOB64()))
+	if err != nil {
+		log.Println(err)
+	}
+	w.Flush()
+
+	return outputFile
+}
+
 func (spimi *SPIMI) mergeBlocks(terms []string, blocks blocks) {
 
 	file, err := os.OpenFile(spimi.outputFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
@@ -171,19 +219,21 @@ func (spimi *SPIMI) mergeBlocks(terms []string, blocks blocks) {
 	}
 	defer file.Close()
 
-	//files := make([]*os.File, 0)
 	for _, b := range blocks {
 		f , err := os.Open(b)
 		if err != nil {
 			log.Println(err)
 		}
-		//files = append(files, f)
+
 		defer f.Close()
+
 		stat, err := f.Stat()
 		if err != nil {
 			log.Println(err)
 		}
+
 		data := make([]byte, stat.Size())
+
 		for {
 			_, err = f.Read(data)
 			if err != nil {
@@ -196,22 +246,6 @@ func (spimi *SPIMI) mergeBlocks(terms []string, blocks blocks) {
 			}
 		}
 		corpus := FromGOB64(string(data))
-		//fmt.Println(corpus)
-		//time.Sleep(2 * time.Second)
-
-
-		//reader := bufio.NewReader(f)
-		//scanner := bufio.NewScanner(reader)
-		//scanner.Split(bufio.ScanLines)
-		//
-		//var data string
-		//for scanner.Scan() {
-		//	data += scanner.Text()
-		//}
-
-		//fmt.Println(data)
-		//time.Sleep(2 *time.Second)
-		//corpus := FromGOB64(data)
 		spimi.IntersectCorpuses(corpus)
 	}
 
@@ -247,100 +281,10 @@ func (spimi *SPIMI) IntersectCorpuses(c *Corpus) {
 				if !documents.Contains(docID) {
 					documents.Docs.Put(docID, doc)
 				} else {
-					documents.updateDocument(docID, doc.Positions)
+					documents.UpdateDocument(docID, doc.Positions)
 				}
 			})
 		}
 	})
 
-}
-
-//type InterfacesReducer func (corpus Corpus, s string) Corpus
-//
-//func reduce(identity Corpus, reducer InterfacesReducer) Corpus {
-//	res := identity
-//	for _, v := range this.values {
-//		res = reducer(res, v)
-//	}
-//
-//	return res
-//}
-
-//def merge_blocks(terms, blocks, output_file='index.txt'):
-//	with open(output_file, 'wt') as index:
-//		files = [ open(b,'rb') for b in blocks ]
-//		d = reduce(operator.add,[ load(f) for f in files ], Index()).items()
-//		for term, postings_list in sorted(d, key=lambda x: x[0]):
-//		 	index.write('%s, %s\n' % (term, str(postings_list)))
-//		for f in files: f.close()
-//
-//	print 'generated', output_file
-
-
-// Create inverted Index
-func (spimi *SPIMI) Invert(blockID int, tokens []Token) string{
-
-	outputFile := fmt.Sprintf("output/block%d.dat", blockID)
-
-	corpus := &Corpus {treemap.NewWithStringComparator()}
-
-	for _, token := range tokens {
-		if index, ok := corpus.Get(token.term); !ok {
-			docs := treemap.NewWithIntComparator()
-			docs.Put(token.docID, Doc{
-				ID:        token.docID,
-				File:      token.file,
-				Frequency: 1,
-				Positions: []int{token.position + 1},
-			})
-			corpus.Put(token.term, Index{Docs{docs}, 1})
-		} else {
-			documents := index.(Index)
-			documents.TotalFrequency++
-			if !index.(Index).Contains(token.docID) {
-				documents.Docs.Put(token.docID, Doc{
-					ID:        token.docID,
-					File:      token.file,
-					Frequency: 1,
-					Positions: []int{token.position + 1},
-				})
-			} else {
-				documents.updateDocument(token.docID, []int{token.position+1})
-			}
-		}
-	}
-
-	file, err := os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		log.Println(err)
-	}
-	defer file.Close()
-
-	w := bufio.NewWriter(file)
-	_, err = w.Write([]byte(corpus.ToGOB64()))
-	if err != nil {
-		log.Println(err)
-	}
-	w.Flush()
-
-	// Why this needed?
-	//outputFile = strings.Replace(outputFile, ".dat", ".txt", -1)
-	//file, err = os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
-	//if err != nil {
-	//	log.Println(err)
-	//}
-	//defer file.Close()
-	//
-	//w = bufio.NewWriter(file)
-	//corpus.Each(func(key, value interface{}) {
-	//	term := key.(string)
-	//	index := value.(Index)
-	//	_, err = w.WriteString(fmt.Sprintf("%s %v", term, index))
-	//	if err != nil {
-	//		log.Println(err)
-	//	}
-	//})
-	//w.Flush()
-
-	return outputFile
 }

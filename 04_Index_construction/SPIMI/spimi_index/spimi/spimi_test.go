@@ -2,17 +2,21 @@ package spimi
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 )
 
 var spimi =  &SPIMI{
 	inputDir:   "data",
-	outputFile: "index.txt",
+	outputFile: "output/index.txt",
 	blockSize:  5000,
+	mutex: &sync.Mutex{},
+	wg: &sync.WaitGroup{},
+
 }
 
 //func TestGenerateTokens(t *testing.T) {
-//	_ = spimi.generateTokens()
+//	fmt.Println(spimi.generateTokens())
 //}
 //
 //func TestMakeBlocks(t *testing.T) {
@@ -28,4 +32,7 @@ var spimi =  &SPIMI{
 //}
 func TestSPIMI(t *testing.T) {
 	fmt.Println(NewSpimi("data", "output/index.txt", 5000).corpus.Keys())
+
+	//TODO: also serialize and deserialize automaton and kgramm index
+	fmt.Println(NewSpimi("data", "output/index.txt", 5000).corpus.FuzzySearch("world", 2))
 }
