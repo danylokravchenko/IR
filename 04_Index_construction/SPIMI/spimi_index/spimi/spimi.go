@@ -40,7 +40,7 @@ type SPIMI struct {
 }
 
 
-func NewSpimi(inputDir, outputFile string, blockSize int) *SPIMI{
+func Spimi(inputDir, outputFile string, blockSize int) *Corpus{
 
 	spimi := &SPIMI{
 		inputDir:   inputDir,
@@ -54,7 +54,7 @@ func NewSpimi(inputDir, outputFile string, blockSize int) *SPIMI{
 	terms := getTerms(tokenStream)
 	spimi.mergeBlocks(terms, blocks)
 
-	return spimi
+	return spimi.corpus
 
 }
 

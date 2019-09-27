@@ -71,6 +71,7 @@ func FromGOB64(str string) *Corpus {
 	if err != nil { fmt.Println(`failed gob Decode`, err); }
 
 	corpus := NewCorpus(2)
+	corpus.BuildIndexFromSerializedTokens(sCorpus.Tokens)
 
 	for _, token := range sCorpus.Tokens {
 		if index, ok := corpus.Get(token.Term); !ok {

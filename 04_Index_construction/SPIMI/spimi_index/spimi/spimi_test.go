@@ -31,8 +31,5 @@ var spimi =  &SPIMI{
 //	spimi.mergeBlocks(terms, blocks)
 //}
 func TestSPIMI(t *testing.T) {
-	fmt.Println(NewSpimi("data", "output/index.txt", 5000).corpus.Keys())
-
-	//TODO: also serialize and deserialize automaton and kgramm index
-	fmt.Println(NewSpimi("data", "output/index.txt", 5000).corpus.FuzzySearch("world", 2))
+	fmt.Println(Spimi("data", "output/index.txt", 5000).FuzzySearch("world", 1))
 }

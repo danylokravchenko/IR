@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/emirpasic/gods/maps/hashmap"
 	"github.com/emirpasic/gods/sets/hashset"
+	"./automaton"
+	"sync"
 )
 
 type Index struct {
@@ -30,6 +32,8 @@ func (index *Index) UpdateDocument(id int, positions []int) {
 type KGrammIndex struct {
 	*hashmap.Map
 	k int
+	mutex   *sync.Mutex
+	wg      *sync.WaitGroup
 }
 
 func (kgramm *KGrammIndex) Print() {
@@ -49,6 +53,12 @@ type KGrammTerms struct {
 	*hashset.Set
 }
 
+type SoundexIndex struct {
+	*hashmap.Map
+	mutex   *sync.Mutex
+	wg      *sync.WaitGroup
+}
+
 type SoundexTerms struct {
 	*hashset.Set
 }
@@ -60,3 +70,8 @@ type Token struct {
 	File string
 }
 
+type Automaton struct {
+	*automaton.Tree
+	mutex   *sync.Mutex
+	wg      *sync.WaitGroup
+}
