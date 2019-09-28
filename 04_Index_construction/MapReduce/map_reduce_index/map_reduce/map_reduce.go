@@ -86,11 +86,8 @@ func inverter (input, output chan interface{}, length int) {
 
 	counter := 0
 
-	for  {
-
-		if counter == length {
-			break
-		}
+	// it is just a hack not to get error that input gourutine if asleep
+	for counter != length{
 
 		b := <- input
 
