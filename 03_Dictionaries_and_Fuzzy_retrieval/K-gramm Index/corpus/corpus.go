@@ -304,7 +304,7 @@ func (corpus *Corpus) GetSimilarlySoundWords(term string) []string {
 }
 
 
-// Get words that could be 'correct' version of user's input word with mistakes
+// Get words that could be 'correct' version of user's data word with mistakes
 func (corpus *Corpus) FuzzySearch(word string, maxDistance int) []string {
 
 	return corpus.automaton.FuzzyMatches(word, maxDistance)

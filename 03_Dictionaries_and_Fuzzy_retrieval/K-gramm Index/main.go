@@ -41,7 +41,7 @@ func main() {
 	// Get word that sound similarly to given one
 	//fmt.Println(c.GetSimilarlySoundWords("Miller")) // Miller, Muller
 
-	// Get words that could be 'correct' version of user's input word with mistakes
+	// Get words that could be 'correct' version of user's data word with mistakes
 	fmt.Println(c.FuzzySearch("Milller", 2)); //Muller, Miller
 
 }

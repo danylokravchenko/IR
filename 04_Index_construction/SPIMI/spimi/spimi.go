@@ -61,7 +61,7 @@ func getTerms(tokens []Token) []string {
 	return res
 }
 
-// Generate tokens from files in input dir
+// Generate tokens from files in data dir
 // TODO: Maybe good idea is to return chanel, so program could run forward while this method will parse files in dir
 func (spimi *SPIMI) generateTokens() []Token {
 

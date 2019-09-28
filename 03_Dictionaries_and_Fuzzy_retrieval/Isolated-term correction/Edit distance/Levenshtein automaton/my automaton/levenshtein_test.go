@@ -150,7 +150,7 @@ func SampleEnglish() []string {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading input:", err)
+		fmt.Fprintln(os.Stderr, "reading data:", err)
 	}
 	fmt.Println("Read", len(testwords), "words")
 	return testwords
