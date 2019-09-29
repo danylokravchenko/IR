@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"runtime"
 	"testing"
+	"../corpus"
 )
 
 func getFilesLength(path string) int {
@@ -19,6 +20,9 @@ func TestMapReduce(t *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	fmt.Println("Processing. Please wait....")
 
+	//TODO: I don't know why, but big files rape this program
+	// RAM is fully loaded
+
 	// start the enumeration of files to be processed into a channel
 	input := enumerateFiles("data")
 
@@ -26,7 +30,9 @@ func TestMapReduce(t *testing.T) {
 	length := getFilesLength("data")
 
 	// this will start the map reduce work
-	_ = mapReduce(mapper, reducer, inverter, input, length)
+	c := mapReduce(mapper, reducer, inverter, input, length)
+
+	fmt.Println(c.(*corpus.Corpus).FuzzySearch("world", 1))
 
 	fmt.Println("Done!")
 }

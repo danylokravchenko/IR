@@ -1,6 +1,7 @@
 package map_reduce
 
 import (
+	"../corpus"
 	"bufio"
 	"bytes"
 	"encoding/base64"
@@ -11,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"../corpus"
 )
 
 type WalkFunc func(path string, info os.FileInfo, err error) error
@@ -108,7 +108,7 @@ type SerializedTokens struct {
 	Tokens []corpus.Token
 }
 
-//// Serialize tokens
+// Serialize tokens
 func (st SerializedTokens) ToGOB64() string {
 
 	b := bytes.Buffer{}

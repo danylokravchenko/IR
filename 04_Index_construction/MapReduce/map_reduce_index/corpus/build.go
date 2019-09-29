@@ -15,9 +15,9 @@ func (corpus *Corpus) BuildIndexFromSlice(data []string) {
 	for i, s := range data {
 		words := splitRaw(s)
 		go corpus.createIndex(words, i)
-		go corpus.buildKGrammIndex(words)
-		go corpus.buildSoundexIndex(words)
-		go corpus.buildAutomatonIndex(words)
+		go corpus.buildKGrammIndexFromTerms(words)
+		go corpus.buildSoundexIndexFromTerms(words)
+		go corpus.buildAutomatonIndexFromTerms(words)
 	}
 
 	corpus.wg.Wait()
@@ -39,15 +39,31 @@ func (corpus *Corpus) BuildIndexFromTokens(tokens []Token) {
 }
 
 // Build inverted index from parsed tokens
+func (corpus *Corpus) BuildIndexFromParsedTokens(tokens []Token) {
+
+	corpus.wg.Add(len(tokens) * 4)
+
+	for _, t := range tokens {
+		go corpus.createIndexFromToken(t)
+		go corpus.buildKGrammIndex(t.Term)
+		go corpus.buildSoundexIndex(t.Term)
+		go corpus.buildAutomatonIndex(t.Term)
+	}
+
+	corpus.wg.Wait()
+
+}
+
+// Build inverted index from parsed tokens
 func (corpus *Corpus) BuildIndexFromSerializedTokens(tokens []SerializedToken) {
 
 	corpus.wg.Add(len(tokens) * 4)
 
 	for _, t := range tokens {
 		go corpus.createIndexFromSerializedToken(t)
-		go corpus.buildKGrammIndexFromSerializedToken(t)
-		go corpus.buildSoundexIndexFromSerializedToken(t)
-		go corpus.buildAutomatonIndexFromSerializedToken(t)
+		go corpus.buildKGrammIndex(t.Term)
+		go corpus.buildSoundexIndex(t.Term)
+		go corpus.buildAutomatonIndex(t.Term)
 	}
 
 	corpus.wg.Wait()
@@ -180,7 +196,7 @@ func (corpus *Corpus) createIndexFromSerializedToken(token SerializedToken) {
 
 
 // Save kgramm keywords into map
-func (corpus *Corpus) buildKGrammIndex(terms []string) {
+func (corpus *Corpus) buildKGrammIndexFromTerms(terms []string) {
 
 	for _, term := range terms {
 
@@ -195,8 +211,6 @@ func (corpus *Corpus) buildKGrammIndex(terms []string) {
 			} else {
 				terms := index.(KGrammTerms)
 				terms.Add(term) //duplicates ignores
-				// don't need next line (I hope :) )
-				//corpus.kGramm.Put(g,terms)
 			}
 
 		}
@@ -209,19 +223,19 @@ func (corpus *Corpus) buildKGrammIndex(terms []string) {
 }
 
 // Save kgramm keywords into map
-func (corpus *Corpus) buildKGrammIndexFromSerializedToken(token SerializedToken) {
+func (corpus *Corpus) buildKGrammIndex(term string) {
 
 	corpus.kGramm.mutex.Lock()
 
-	gramms := splitKGramm(token.Term, corpus.kGramm.k)
+	gramms := splitKGramm(term, corpus.kGramm.k)
 
 	for _, g := range gramms {
 
 		if index, ok := corpus.kGramm.Get(g); !ok {
-			corpus.kGramm.Put(g, KGrammTerms{hashset.New(token.Term)})
+			corpus.kGramm.Put(g, KGrammTerms{hashset.New(term)})
 		} else {
 			terms := index.(KGrammTerms)
-			terms.Add(token.Term) //duplicates ignores
+			terms.Add(term) //duplicates ignores
 		}
 
 	}
@@ -233,7 +247,7 @@ func (corpus *Corpus) buildKGrammIndexFromSerializedToken(token SerializedToken)
 }
 
 // Save soundex value into map (English)
-func (corpus *Corpus) buildSoundexIndex(terms []string) {
+func (corpus *Corpus) buildSoundexIndexFromTerms(terms []string) {
 
 	for _, term := range terms {
 
@@ -256,18 +270,19 @@ func (corpus *Corpus) buildSoundexIndex(terms []string) {
 
 }
 
+
 // Save soundex value into map (English)
-func (corpus *Corpus) buildSoundexIndexFromSerializedToken(token SerializedToken) {
+func (corpus *Corpus) buildSoundexIndex(term string) {
 
 	corpus.soundex.mutex.Lock()
 
-	val := phonetics.EncodeSoundex(token.Term)
+	val := phonetics.EncodeSoundex(term)
 
 	if index, ok := corpus.soundex.Get(val); !ok {
-		corpus.soundex.Put(val, SoundexTerms{hashset.New(token.Term)})
+		corpus.soundex.Put(val, SoundexTerms{hashset.New(term)})
 	} else {
 		terms := index.(SoundexTerms)
-		terms.Add(token.Term) //duplicates ignores
+		terms.Add(term) //duplicates ignores
 	}
 
 	corpus.soundex.mutex.Unlock()
@@ -278,7 +293,7 @@ func (corpus *Corpus) buildSoundexIndexFromSerializedToken(token SerializedToken
 }
 
 // Build Levenshtein Sparse automaton indexes
-func (corpus *Corpus) buildAutomatonIndex(terms []string) {
+func (corpus *Corpus) buildAutomatonIndexFromTerms(terms []string) {
 
 	for _, term := range terms {
 
@@ -300,21 +315,19 @@ func (corpus *Corpus) buildAutomatonIndex(terms []string) {
 }
 
 // Build Levenshtein Sparse automaton indexes
-func (corpus *Corpus) buildAutomatonIndexFromSerializedToken(token SerializedToken) {
+func (corpus *Corpus) buildAutomatonIndex(term string) {
 
-	if token.Term == "" {
+	if term == "" {
 		corpus.wg.Done()
 		return
 	}
 
 	corpus.automaton.mutex.Lock()
 
-	corpus.automaton.Insert(token.Term)
+	corpus.automaton.Insert(term)
 
 	corpus.automaton.mutex.Unlock()
 
 	corpus.wg.Done()
 
 }
-
-

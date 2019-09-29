@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 )
 
 // Flow:
@@ -38,7 +39,6 @@ func mapper(filename interface{}, output chan interface{}) {
 
 	// start the enumeration of each line in the file
 	for line := range enumerateFile(filename.(string)) {
-
 		terms := tokenize(line)
 
 		for pos, term := range terms {
@@ -86,62 +86,68 @@ func inverter (input, output chan interface{}, length int) {
 
 	counter := 0
 
-	// it is just a hack not to get error that input gourutine if asleep
-	for counter != length{
+	go func() {
 
-		b := <- input
+		// it is just a hack not to get error that input gourutine if asleep
+		for counter != length {
 
-		wg.Add(1)
+			b := <-input
 
-		go func(filename string) {
+			wg.Add(1)
 
-			f, err := os.Open(filename)
-			if err != nil {
-				log.Println(err)
-			}
+			go func(filename string) {
 
-			defer f.Close()
-
-			stat, err := f.Stat()
-			if err != nil {
-				log.Println(err)
-			}
-
-			data := make([]byte, stat.Size())
-
-			for {
-				_, err = f.Read(data)
+				f, err := os.Open(b.(string))
 				if err != nil {
-					if err == io.EOF {
-						break // end of the file
-					} else {
-						fmt.Println("Error reading file");
-						os.Exit(1)
+					log.Println(err)
+				}
+
+				defer f.Close()
+
+				stat, err := f.Stat()
+				if err != nil {
+					log.Println(err)
+				}
+
+				time.Sleep(2 * time.Second)
+
+				data := make([]byte, stat.Size())
+
+				for {
+					_, err = f.Read(data)
+					if err != nil {
+						if err == io.EOF {
+							break // end of the file
+						} else {
+							fmt.Println("Error reading file");
+							os.Exit(1)
+						}
 					}
 				}
-			}
 
-			result <- FromGOB64(string(data))
-			wg.Done()
+				result <- FromGOB64(string(data))
+				wg.Done()
 
-		}(b.(string))
+			}(b.(string))
 
-		counter++
-	}
+			counter++
+		}
 
-	go func() {
-		wg.Wait()
-		close(result)
+		go func() {
+			wg.Wait()
+			close(result)
+		}()
+
 	}()
 
-	tokens := make([]corpus.Token, 0)
+	c := corpus.NewCorpus(2)
 
 	for res := range result {
-		tokens = append(tokens, res...)
+		go func() {
+			c.BuildIndexFromParsedTokens(res)
+		}()
 	}
 
-	c := corpus.NewCorpus(2)
-	c.BuildIndexFromTokens(tokens)
 	output <- c
 }
 
