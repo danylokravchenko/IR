@@ -171,14 +171,12 @@ func (spimi *SPIMI) mergeBlocks(terms []string, blocks blocks) {
 	}
 	defer file.Close()
 
-	//files := make([]*os.File, 0)
 	for _, b := range blocks {
 		f , err := os.Open(b)
 		if err != nil {
 			log.Println(err)
 		}
-		//files = append(files, f)
-		defer f.Close()
+
 		stat, err := f.Stat()
 		if err != nil {
 			log.Println(err)
@@ -196,23 +194,14 @@ func (spimi *SPIMI) mergeBlocks(terms []string, blocks blocks) {
 			}
 		}
 		corpus := FromGOB64(string(data))
-		//fmt.Println(corpus)
-		//time.Sleep(2 * time.Second)
-
-
-		//reader := bufio.NewReader(f)
-		//scanner := bufio.NewScanner(reader)
-		//scanner.Split(bufio.ScanLines)
-		//
-		//var data string
-		//for scanner.Scan() {
-		//	data += scanner.Text()
-		//}
-
-		//fmt.Println(data)
-		//time.Sleep(2 *time.Second)
-		//corpus := FromGOB64(data)
 		spimi.IntersectCorpuses(corpus)
+
+		f.Close()
+		//delete file
+		err = os.Remove(b)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 
 
@@ -254,27 +243,6 @@ func (spimi *SPIMI) IntersectCorpuses(c *Corpus) {
 	})
 
 }
-
-//type InterfacesReducer func (corpus Corpus, s string) Corpus
-//
-//func reduce(identity Corpus, reducer InterfacesReducer) Corpus {
-//	res := identity
-//	for _, v := range this.values {
-//		res = reducer(res, v)
-//	}
-//
-//	return res
-//}
-
-//def merge_blocks(terms, blocks, output_file='index.txt'):
-//	with open(output_file, 'wt') as index:
-//		files = [ open(b,'rb') for b in blocks ]
-//		d = reduce(operator.add,[ load(f) for f in files ], Index()).items()
-//		for term, postings_list in sorted(d, key=lambda x: x[0]):
-//		 	index.write('%s, %s\n' % (term, str(postings_list)))
-//		for f in files: f.close()
-//
-//	print 'generated', output_file
 
 
 // Create inverted Index
@@ -322,25 +290,6 @@ func (spimi *SPIMI) Invert(blockID int, tokens []Token) string{
 		log.Println(err)
 	}
 	w.Flush()
-
-	// Why this needed?
-	//outputFile = strings.Replace(outputFile, ".dat", ".txt", -1)
-	//file, err = os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
-	//if err != nil {
-	//	log.Println(err)
-	//}
-	//defer file.Close()
-	//
-	//w = bufio.NewWriter(file)
-	//corpus.Each(func(key, value interface{}) {
-	//	term := key.(string)
-	//	index := value.(Index)
-	//	_, err = w.WriteString(fmt.Sprintf("%s %v", term, index))
-	//	if err != nil {
-	//		log.Println(err)
-	//	}
-	//})
-	//w.Flush()
 
 	return outputFile
 }
