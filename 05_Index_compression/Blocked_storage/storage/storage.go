@@ -29,7 +29,7 @@ func InitStorage(inputDir string) *corpus.BlockTree {
 
 }
 
-func DeserializeBlock(term, path string) []corpus.SerializedToken{
+func DeserializeBlock(path string) *corpus.SerializedCorpus{
 	f , err := os.Open(path)
 	if err != nil {
 		log.Println(err)
@@ -55,12 +55,14 @@ func DeserializeBlock(term, path string) []corpus.SerializedToken{
 		}
 	}
 
-	tokens := corpus.SerializedCorpusFromBlock(string(data)).Filter(func(token corpus.SerializedToken) bool{
+	return corpus.SerializedCorpusFromBlock(string(data))
+
+}
+
+func DeserializeTerm(term, path string) corpus.SerializedToken {
+	return DeserializeBlock(path).Filter(func(token corpus.SerializedToken) bool{
 		return token.Term == term
-	}).Tokens
-
-	return tokens
-
+	}).Tokens[0]
 }
 
 func fileExists(path string) bool {
