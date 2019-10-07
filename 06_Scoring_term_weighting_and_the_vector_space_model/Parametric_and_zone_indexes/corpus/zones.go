@@ -52,7 +52,7 @@ type TermRank struct {
 	Score float32
 }
 
-// RankSorter sorts indexes by term name.
+// RankSorter sorts indexes by term score.
 type RankSorter []TermRank
 
 func (a RankSorter) Len() int           { return len(a) }
