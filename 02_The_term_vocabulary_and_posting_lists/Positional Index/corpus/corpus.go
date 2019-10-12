@@ -65,7 +65,7 @@ func splitRaw(s string) []string {
 func (corpus *Corpus) Print() {
 	corpus.Each(func(key interface{}, value interface{}) {
 		index := value.(Index)
-		fmt.Printf("term: %s, total Frequency: %d, posting list: \n",key.(string), index.TotalFrequency)
+		fmt.Printf("term: %s, total NormalizedFrequency: %d, posting list: \n",key.(string), index.TotalFrequency)
 		index.Docs.Each(func(key interface{}, value interface{}) {
 			fmt.Println(value.(Doc))
 		})

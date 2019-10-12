@@ -18,7 +18,7 @@ type Docs struct {
 
 // override toString
 func (doc Doc) String() string {
-	return fmt.Sprintf("{ID: %d, File: %s, Frequency: %d, Positions: %d", doc.ID, doc.File, doc.Frequency, doc.Positions)
+	return fmt.Sprintf("{ID: %d, File: %s, NormalizedFrequency: %d, Positions: %d", doc.ID, doc.File, doc.Frequency, doc.Positions)
 }
 
 type Index struct {
