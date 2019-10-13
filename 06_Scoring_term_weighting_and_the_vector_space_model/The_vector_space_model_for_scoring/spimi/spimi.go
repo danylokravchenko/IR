@@ -97,14 +97,14 @@ func (spimi *SPIMI) generateTokens() []Token {
 	for i, f := range files {
 		// TODO: use concurrency to parse document
 		// 1 gorutine per file
-		go func() {
-			tokens, err := spimi.parseDocument(i, spimi.inputDir +"/" + f.Name())
+		go func(i int, filename string) {
+			tokens, err := spimi.parseDocument(i, filename)
 			if err != nil {
 				log.Println(err)
 				return
 			}
 			tokenStream = append(tokenStream, tokens...)
-		}()
+		}(i, spimi.inputDir +"/" + f.Name())
 
 	}
 
@@ -396,4 +396,5 @@ func (spimi *SPIMI) createBlock(blockID int, terms []interface{}) string {
 	w.Flush()
 
 	return outputFile
+
 }

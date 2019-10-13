@@ -1,10 +1,10 @@
 package storage
 
 import (
+	"../corpus"
 	"math"
 	"sort"
 	"strings"
-	"../corpus"
 )
 
 type TermRank struct {
@@ -83,11 +83,11 @@ func sortScores(scores []TermRank) []TermRank {
 	return scores
 }
 
-// Get top K results for givent query using cosine score and vector model
+// Get top K results for given query using cosine score and vector model
 func CosineScore(bt *corpus.BlockTree, query string, top int) []TermRank {
 
-	tokens := parseTokens(query)
-	scores := make([]TermRank, 0)
+	tokens := parseToTokens(query)
+	scores := make(map[string] float32)
 
 	for _, t := range tokens {
 
@@ -97,6 +97,7 @@ func CosineScore(bt *corpus.BlockTree, query string, top int) []TermRank {
 		}
 
 		p := DeserializeTerm(t.Term, block.(string))
+
 		for _, d := range p.Docs {
 
 			if doc, ok := bt.Documents.Get(d.DocID); ok {
@@ -104,16 +105,15 @@ func CosineScore(bt *corpus.BlockTree, query string, top int) []TermRank {
 
 				if frequency, ok := document.Get(t.Term); ok {
 					ntf := frequency.(float32)
-					doc := InputToken {
+					doc := InputVector {
 						Term:                        t.Term,
 						NormalizedDocumentFrequency: ntf,
 						InverseDocumentFrequency:    d.InverseDocumentFrequency,
 						TFxIDF:                      ntf * d.InverseDocumentFrequency,
 					}
-					scores = append(scores, TermRank{
-						File:  d.File,
-						Score: CosineSimilarity(t, doc),
-					})
+
+					scores[d.File] += CosineSimilarity(t, doc) * doc.NormalizedDocumentFrequency
+
 				}
 
 			}
@@ -122,7 +122,16 @@ func CosineScore(bt *corpus.BlockTree, query string, top int) []TermRank {
 
 	}
 
-	return getTopKResults(sortScores(scores), top)
+	ranks := make([]TermRank, 0)
+
+	for key, value := range scores {
+		ranks = append(ranks, TermRank {
+			File:  key,
+			Score: value,
+		})
+	}
+
+	return getTopKResults(sortScores(ranks), top)
 
 }
 
@@ -148,7 +157,7 @@ func getTopKResults(scores []TermRank, k int) []TermRank {
 
 }
 
-func parseTokens(query string) []InputToken {
+func parseToTokens(query string) []InputVector {
 
 	//TODO: normalize query input
 	input := strings.Split(query, " ")
@@ -158,11 +167,11 @@ func parseTokens(query string) []InputToken {
 		temp[term] += 1
 	}
 
-	tokens := make([]InputToken, 0)
+	tokens := make([]InputVector, 0)
 	for key, value := range temp {
 		idf := corpus.CountInverseDocumentFrequency(len(input), value)
 		ndf := float32(value)/float32(len(input))
-		tokens = append(tokens, InputToken {
+		tokens = append(tokens, InputVector{
 			Term:                        key,
 			NormalizedDocumentFrequency: ndf,
 			InverseDocumentFrequency:    idf,
@@ -174,17 +183,41 @@ func parseTokens(query string) []InputToken {
 
 }
 
-type InputToken struct {
+type InputVector struct {
 	Term string
 	NormalizedDocumentFrequency float32
 	InverseDocumentFrequency float32
 	TFxIDF float32
 }
 
+// Dot returns the standard dot product of v and ov.
+func (v InputVector) Dot(ov InputVector) float32 { return v.TFxIDF * ov.TFxIDF + v.InverseDocumentFrequency * ov.InverseDocumentFrequency + v.NormalizedDocumentFrequency * ov.NormalizedDocumentFrequency}
+
+// Norm returns the vector's norm.
+func (v InputVector) Norm() float32 { return float32(math.Sqrt(float64(v.Dot(v)))) }
+
+// Distance returns the Euclidean distance between v and ov.
+func (v InputVector) Distance(ov InputVector) float32 { return v.Sub(ov).Norm() }
+
+// Sub returns the standard vector difference of v and ov.
+func (v InputVector) Sub(ov InputVector) InputVector { return InputVector{v.Term, v.NormalizedDocumentFrequency - ov.NormalizedDocumentFrequency, v.InverseDocumentFrequency - ov.InverseDocumentFrequency, v.TFxIDF - ov.InverseDocumentFrequency} }
+
+
+//// Norm returns the vector's norm.
+//func (v Vector) Norm() float64 { return math.Sqrt(v.Dot(v)) }
+//
+//// Sub returns the standard vector difference of v and ov.
+//func (v Vector) Sub(ov Vector) Vector { return Vector{v.X - ov.X, v.Y - ov.Y, v.Z - ov.Z} }
+//
+//// Dot returns the standard dot product of v and ov.
+//func (v Vector) Dot(ov Vector) float64 { return v.X*ov.X + v.Y*ov.Y + v.Z*ov.Z }
+//
+//// Distance returns the Euclidean distance between v and ov.
+//func (v Vector) Distance(ov Vector) float64 { return v.Sub(ov).Norm() }
 
 
 // DotProduct of 2 vectors
-func DotProduct(doc1, doc2 InputToken) float32 {
+func DotProduct(doc1, doc2 InputVector) float32 {
 
 	return doc1.TFxIDF * doc2.TFxIDF
 
@@ -192,7 +225,7 @@ func DotProduct(doc1, doc2 InputToken) float32 {
 
 
 // Return euclidean length for the given document
-func EuclideanLength(doc InputToken) float32 {
+func EuclideanLength(doc InputVector) float32 {
 
 	return float32(math.Sqrt(math.Pow(float64(doc.TFxIDF), 2)))
 
@@ -200,15 +233,14 @@ func EuclideanLength(doc InputToken) float32 {
 
 
 // Calculate cosine similarity for 2 documents
-func CosineSimilarity(doc1, doc2 InputToken) float32 {
+func CosineSimilarity(doc1, doc2 InputVector) float32 {
 
-	return DotProduct(doc1, doc2) / (EuclideanLength(doc1) * EuclideanLength(doc2))
+	return doc1.Dot(doc2) / (doc1.Distance(doc2) * doc2.Distance(doc1))
 
 }
 
-
 // DotProduct of 2 vectors
-func DotProduct2(doc1, doc2 []InputToken) float32 {
+func DotProduct2(doc1, doc2 []InputVector) float32 {
 
 	sum := float32(0)
 
@@ -222,7 +254,7 @@ func DotProduct2(doc1, doc2 []InputToken) float32 {
 
 
 // Return euclidean length for the given document
-func EuclideanLength2(docs []InputToken) float32 {
+func EuclideanLength2(docs []InputVector) float32 {
 
 	res := float64(0)
 
@@ -236,7 +268,7 @@ func EuclideanLength2(docs []InputToken) float32 {
 
 
 // Calculate cosine similarity for 2 documents
-func CosineSimilarity2(doc1, doc2 []InputToken) float32 {
+func CosineSimilarity2(doc1, doc2 []InputVector) float32 {
 
 	return DotProduct2(doc1, doc2) / (EuclideanLength2(doc1) * EuclideanLength2(doc2))
 
